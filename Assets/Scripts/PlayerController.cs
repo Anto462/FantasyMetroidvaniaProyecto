@@ -1,6 +1,9 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UIElements;
+using UnityEngine.UI;
 
 public class PlayerController : MonoBehaviour
 {
@@ -108,6 +111,30 @@ public class PlayerController : MonoBehaviour
     [SerializeField] public int health;
     [SerializeField] public int MaxHealth;
     [SerializeField] GameObject DamageFeathers;
+    public delegate void OnHealthChangedDelegate();
+    [HideInInspector] public OnHealthChangedDelegate onHealthChangedCallback;
+
+    //Esto es para la curacion
+    float healTimer;
+
+    [SerializeField]
+    float healchance;
+
+    [SerializeField] 
+    float timeToHeal;
+
+    [Space(3)]
+    [Header("Magia y Mana")]
+    [SerializeField] 
+    public float mana;
+    [SerializeField]
+    public float manaDrainSP;
+    [SerializeField]
+    float manaChance; //Cantidad de pociones de mana
+    [SerializeField]
+    public float Getmana; //La idea seria implementarlo con pociones de mana
+    [SerializeField] 
+    UnityEngine.UI.Image manaSTRG;
 
     //Esto es para que el jugador pueda reaccionar y asi si vinen varios no se quede atascado y muera
     bool restoreTime;
@@ -141,6 +168,9 @@ public class PlayerController : MonoBehaviour
         anim = GetComponent<Animator>();
 
         gravity = rb.gravityScale;
+
+        Mana = mana; //El Mana es el mana
+        manaSTRG.fillAmount = Mana;
     }
 
     private void OnDrawGizmos() //Se dibuja un gizmos para poder observar el area de ataque
@@ -165,6 +195,8 @@ public class PlayerController : MonoBehaviour
         Attack(); //Ataque
         Recoil(); //accion de recoil
         restoreTimeEscale(); //Para que el tiempo se detenga un poco al recibir un golpe
+        Heal(); //Curacion
+        GettingMana(); //Obtener Mana
 
     }
 
@@ -216,7 +248,7 @@ public class PlayerController : MonoBehaviour
 
     void CrowStartDash()
     {
-        if (Input.GetButtonDown("Dash") && CrowDash && !CrowDashed)
+        if (Input.GetButtonDown("Dash") && CrowDash && !CrowDashed && Mana > 0)
         {
             StartCoroutine(Dash());
             CrowDashed = true;
@@ -236,6 +268,7 @@ public class PlayerController : MonoBehaviour
         rb.velocity = new Vector2(transform.localScale.x * CDashSpeed, 0); //Se mueve horizontalmente segun la escala y velocidad del dash
         yield return new WaitForSeconds(CDashTime); //Se espera a que termine el dash
         rb.gravityScale = gravity; //Se vuelve a aplicar la gravedad
+        Mana -= manaDrainSP;
         PState.dashing = false; //Se deja de estar dasheando
         yield return new WaitForSeconds(CDashCooldown); //Se aplica el cd del dash
         CrowDash = true; //Se activa nuevamente el dash
@@ -378,7 +411,44 @@ public class PlayerController : MonoBehaviour
             if (health != value) //Si la vida es diferente al valor retornado por health
             {
                 health = Mathf.Clamp(value, 0, MaxHealth); //Se hace el calculo
+
+                if(onHealthChangedCallback != null)
+                {
+                    onHealthChangedCallback.Invoke();
+                }
             }
+        }
+    }
+
+    void Heal() //Curacion
+    {
+        if (Input.GetButton("Healing") && Health < MaxHealth && !PState.Jumping && !PState.dashing) //Mientras estripe la q para curarme y tenga menos de la vida maxima y no este ni saltando ni dasheadno
+        {
+            if(healchance > 0)
+            {
+                Debug.Log(healchance);
+                PState.healing = true; //Podemos curarnos
+                healTimer += Time.deltaTime; //Cd y usos de heal
+                if (healTimer >= timeToHeal)
+                {
+
+                    Health++;
+                    healTimer = 0; //Cd
+                    healchance = healchance - 1;
+                }
+            }
+            else
+            {
+                Debug.Log(healchance);
+                PState.healing = false;
+            }
+        }
+        else
+        {
+
+            PState.healing = false;
+            healTimer = 0;
+
         }
     }
 
@@ -506,6 +576,34 @@ public class PlayerController : MonoBehaviour
         else
         {
             JumpBufferCounter--; //La disminuyes en uno cada Frame
+        }
+    }
+
+    float Mana
+    {
+        get { return mana; }
+        set { if(mana != value){ //Si mana es diferente del valor actual de mana
+            mana = Mathf.Clamp(value, 0, 1); //Hacemos que el mana lo sea 
+            manaSTRG.fillAmount = Mana; //Pa rellenar el mana de la UI
+            }
+        }
+    }
+    void GettingMana() //Obtener mana
+    {
+        if (Input.GetButtonDown("GetMana") && !PState.Jumping && !PState.dashing) //Mientras estripe la q para curarme y tenga menos de la vida maxima y no este ni saltando ni dasheadno
+        {
+            if (manaChance > 0)
+            {
+                Debug.Log(manaChance);
+                PState.gettingMana = true;
+                Mana += Getmana;
+                manaChance = manaChance - 1;
+            }
+        }
+        else
+        {
+            PState.gettingMana = false;
+            Debug.Log(manaChance);
         }
     }
 
